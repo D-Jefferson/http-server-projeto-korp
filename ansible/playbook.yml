@@ -1,0 +1,13 @@
+---
+- name: Provisionar Ambiente do Projeto Korp
+  hosts: local
+  become: yes
+  vars:
+    project_dir: "{{ playbook_dir }}/.."
+  roles:
+    - role: docker
+      tags: ['docker', 'install']
+    - role: deploy
+      tags: ['deploy', 'app']
+    - role: test
+      tags: ['test', 'validate']

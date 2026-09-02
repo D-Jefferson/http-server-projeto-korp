@@ -1,0 +1,18 @@
+---
+- name: Realizar requisição HTTP para o endpoint da aplicação
+  uri:
+    url: http://localhost/projeto-korp
+    method: GET
+    return_content: yes
+  register: http_response
+
+- name: Exibir a resposta no console
+  debug:
+    msg: "Resposta recebida: {{ http_response.content }}"
+
+- name: Validar se a resposta contém Projeto Korp
+  assert:
+    that:
+      - "'Projeto Korp' in http_response.content"
+    fail_msg: "A aplicação não retornou a string esperada."
+    success_msg: "A aplicação está funcionando e retornou o JSON corretamente."
