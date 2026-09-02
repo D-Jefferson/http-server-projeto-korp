@@ -6,9 +6,6 @@ WORKDIR /app
 RUN apk add --no-cache git
 
 COPY go.mod ./
-
-RUN go mod tidy
-
 COPY main.go ./
 
 RUN go mod tidy
@@ -20,7 +17,7 @@ FROM alpine:3.19
 
 WORKDIR /app
 
-RUN apk add --no-cache tzdata
+RUN apk add --no-cache tzdata wget
 
 COPY --from=builder /app/server .
 
