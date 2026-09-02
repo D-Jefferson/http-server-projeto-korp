@@ -1,71 +1,118 @@
-# Projeto Korp - Desafio Técnico (DevOps & SRE)
+# http-server-projeto-korp
 
-Este repositório contém a solução para o desafio técnico "Projeto Korp", desenvolvido com foco em boas práticas de engenharia de software, cultura DevOps e SRE (Site Reliability Engineering). 
+Solução para o desafio técnico Korp, desenvolvida com foco em boas práticas de DevOps e SRE: infraestrutura automatizada, observável e reproduzível do zero com um único comando.
 
-A infraestrutura foi pensada para ser automatizada, escalável, monitorável e fácil de manter, atendendo aos requisitos de nível Sênior.
+## Arquitetura
 
-## 🚀 Arquitetura da Solução
+```
+                          ┌─────────────────────────────────────────────┐
+                          │               korp-network (bridge)          │
+                          │                                               │
+  Requisição HTTP ──────► │  NGINX :80  ──► App Go :8080                │
+  curl localhost/...      │                    │                          │
+                          │                    └──► /metrics             │
+                          │                              │                │
+                          │  Prometheus :9090 ◄──────────┘               │
+                          │       │                                       │
+                          │  Grafana :3000 ◄──────────────────────────── │
+                          └─────────────────────────────────────────────┘
+```
 
-A solução foi construída utilizando os seguintes componentes:
+| Componente | Tecnologia | Função |
+|---|---|---|
+| Serviço HTTP | Go 1.21 | API REST + exposição de métricas Prometheus |
+| Proxy Reverso | NGINX 1.27 | Ponto de entrada público, roteamento |
+| Métricas | Prometheus v2.53 | Coleta e armazenamento de métricas |
+| Dashboards | Grafana 11.2 | Visualização (provisionado "as code") |
+| Automação | Ansible | Provisionamento completo do ambiente |
 
-1. **Golang HTTP Server (`/app`)**: Um microserviço rápido, leve e tipado, servindo o endpoint `/projeto-korp` e expondo métricas nativamente no `/metrics`.
-2. **Docker (Multi-stage build)**: O processo de build da imagem Go garante um artefato final mínimo (baseado em `alpine`) e seguro (rodando com usuário restrito `non-root`), não levando ferramentas de compilação para produção.
-3. **Docker Compose**: Orquestração do ambiente local definindo a rede privada `korp-network`.
-4. **NGINX (Proxy Reverso)**: Ponto de entrada (Porta 80) que roteia as requisições para a aplicação Go (Porta 8080), mantendo a aplicação isolada da rede externa.
-5. **Monitoramento (Prometheus + Grafana)**: 
-   - O Prometheus coleta as métricas do serviço Go.
-   - O Grafana foi configurado **"as code"** (Provisioning). Os Datasources e o Dashboard principal são injetados na inicialização do container, sem necessidade de configuração manual pela interface.
-6. **Ansible (`/ansible`)**: A automação foi dividida em **Roles** (`docker`, `deploy`, `test`) garantindo modularidade. O playbook principal instala o Docker (caso necessário num ambiente Debian/Ubuntu), sobe a stack inteira e realiza um teste de integração batendo na API.
+## Pré-requisitos
 
----
+- Docker e Docker Compose (plugin v2)
+- Para automação via Ansible: Linux/WSL com Python 3 e `pip install ansible`
 
-## 🛠️ Tecnologias Utilizadas
+## Execução
 
-- **Linguagem**: Go (Golang) 1.21
-- **Containers**: Docker & Docker Compose
-- **Web Server / Proxy**: NGINX
-- **Observabilidade**: Prometheus & Grafana
-- **Automação (IaC)**: Ansible
+### Opção 1 — Ansible (ambiente Linux/WSL)
 
----
+Provisiona tudo com um único comando, incluindo instalação do Docker se necessário:
 
-## ⚙️ Como Executar
+```bash
+# Instalar dependências (apenas na primeira vez)
+ansible-galaxy collection install -r ansible/requirements.yml
 
-O projeto foi projetado para ser executado de forma totalmente automatizada através do Ansible. 
+ansible-playbook -i ansible/inventory.ini ansible/playbook.yml -K
+```
 
-### Pré-requisitos
-- Um ambiente Linux (ou WSL no Windows)
-- Ansible instalado (`pip install ansible` ou `apt install ansible`)
+### Opção 2 — Docker Compose direto
 
-### Passo a Passo
+```bash
+docker compose up --build -d
+```
 
-1. Clone o repositório:
-   ```bash
-   git clone <url-do-repositorio>
-   cd http-server-projeto-korp
-   ```
+## Validação
 
-2. Execute o playbook de automação:
-   O comando abaixo irá instalar as dependências (se necessário), orquestrar os containers e validar o funcionamento executando um request HTTP.
-   ```bash
-   ansible-playbook -i ansible/inventory.ini ansible/playbook.yml -K
-   ```
-   *(O parâmetro `-K` solicitará a senha de sudo, caso a role de docker precise instalar pacotes)*
+```bash
+# Endpoint principal
+curl http://localhost/projeto-korp
 
-3. Validação Manual (Opcional):
-   Após a execução bem-sucedida, você pode validar localmente:
-   - **API**: `curl http://localhost:80/projeto-korp`
-   - **Grafana**: Acesse `http://localhost:3000` no seu navegador para ver o dashboard já configurado com as métricas de tempo de resposta e volume.
+# Health check
+curl http://localhost/healthz
 
----
+# Métricas Prometheus
+curl http://localhost/metrics
+```
 
-## 🧠 Decisões Arquiteturais e Boas Práticas
+**Grafana**: acesse `http://localhost:3000` — usuário `admin`, senha `admin`.  
+O dashboard **"App Dashboard"** já estará provisionado automaticamente.
 
-- **Go Modules sem `go.sum` inicial**: No ambiente de teste, assumimos que o host pode não ter Go instalado. O `go mod tidy` é executado na etapa de builder do Docker para garantir as dependências.
-- **Segurança em Containers**: O container da aplicação roda com `USER appuser` (non-root), reduzindo drasticamente a superfície de ataque caso haja alguma vulnerabilidade na aplicação.
-- **Monitoramento Embutido (Golden Signals)**: A própria aplicação expõe as métricas de Volume (Taxa de Requisições) e Latência (Duração Média) utilizando a biblioteca oficial do Prometheus.
-- **Ansible Roles**: Em vez de um único script massivo de playbook, a divisão em roles permite o reaproveitamento de código em cenários do mundo real (ex: usar a role de Docker em outros projetos).
-- **Grafana "As Code"**: Provisionar dashboards evita o clássico problema de "funciona na minha máquina, mas perdeu a configuração quando recriou o container".
+## Endpoints da Aplicação
 
----
-*Desenvolvido como resolução do desafio técnico.*
+| Endpoint | Método | Descrição |
+|---|---|---|
+| `/projeto-korp` | GET | Retorna JSON com nome e horário UTC |
+| `/healthz` | GET | Health check — retorna `{"status":"ok"}` |
+| `/metrics` | GET | Métricas no formato Prometheus |
+
+## Estrutura do Projeto
+
+```
+.
+├── app/
+│   ├── main.go           # Servidor HTTP com métricas e health check
+│   ├── go.mod
+│   └── Dockerfile        # Multi-stage build (builder → alpine)
+├── config/
+│   ├── nginx/conf.d/     # Configuração do proxy reverso
+│   ├── prometheus/       # Configuração do scrape
+│   └── grafana/
+│       └── provisioning/ # Datasource e dashboard provisionados as-code
+├── ansible/
+│   ├── playbook.yml      # Playbook principal
+│   ├── inventory.ini
+│   └── roles/
+│       ├── docker/       # Instalação do Docker Engine + Compose plugin
+│       ├── deploy/       # Build e orquestração via docker compose
+│       └── test/         # Validação via requisição HTTP com assert
+└── docker-compose.yml
+```
+
+## Decisões Arquiteturais
+
+**Multi-stage Dockerfile**: O binário final roda em `alpine:3.19` sem ferramentas de compilação, reduzindo a superfície de ataque e o tamanho da imagem.
+
+**Non-root container**: O processo roda com usuário `appuser` (UID 1000), eliminando privilégios desnecessários.
+
+**HTTP Server com timeouts**: `ReadTimeout`, `WriteTimeout` e `IdleTimeout` configurados para mitigar ataques Slowloris.
+
+**Métricas com labels `method` + `status_code`**: Permite distinguir erros 4xx de 2xx no Grafana, seguindo o padrão RED (Rate, Errors, Duration).
+
+**Grafana "as code"**: Datasources e dashboards provisionados via arquivos YAML/JSON. Nenhuma configuração manual necessária após `docker compose up`.
+
+**Healthcheck + `depends_on: condition: service_healthy`**: Elimina race conditions na inicialização. O NGINX só sobe após o app Go estar saudável.
+
+**Versões de imagens fixadas**: `grafana:11.2.0`, `prometheus:v2.53.0`, `nginx:1.27-alpine` — garantia de reproducibilidade.
+
+**Ansible Roles modulares**: Divisão em `docker`, `deploy` e `test` permite reaproveitamento independente. A role `test` usa `assert` com `fail_msg` e `success_msg` para validação com saída legível.
+
+**Docker Compose v2 no Ansible**: Uso do módulo `community.docker.docker_compose_v2` (não o deprecated v1 via pip).
