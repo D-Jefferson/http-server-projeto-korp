@@ -1,18 +1,15 @@
 ---
-- name: Ensure docker-compose is available for ansible module
-  pip:
-    name: docker
-    state: present
-
-- name: Build and deploy the application stack
-  community.docker.docker_compose:
+- name: Build e deploy da stack via Docker Compose
+  community.docker.docker_compose_v2:
     project_src: "{{ project_dir }}"
-    build: yes
+    build: always
     state: present
   register: compose_result
 
-- name: Wait for services to be ready
+- name: Aguardar o serviço ficar disponível na porta 80
   wait_for:
+    host: localhost
     port: 80
     delay: 5
-    timeout: 30
+    timeout: 60
+    state: started

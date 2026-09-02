@@ -1,50 +1,51 @@
 ---
-- name: Check if Docker is installed
+- name: Verificar se o Docker está instalado
   command: docker --version
   register: docker_installed
   ignore_errors: true
+  changed_when: false
 
-- name: Update apt cache
+- name: Atualizar cache do apt
   apt:
     update_cache: yes
+    cache_valid_time: 3600
   when: ansible_os_family == "Debian" and docker_installed.rc != 0
 
-- name: Install dependencies
+- name: Instalar dependências do Docker
   apt:
     name:
       - apt-transport-https
       - ca-certificates
       - curl
-      - software-properties-common
-      - python3-pip
+      - gnupg
+      - lsb-release
     state: present
   when: ansible_os_family == "Debian" and docker_installed.rc != 0
 
-- name: Add Docker GPG key
+- name: Adicionar chave GPG oficial do Docker
   apt_key:
     url: https://download.docker.com/linux/ubuntu/gpg
     state: present
   when: ansible_os_family == "Debian" and docker_installed.rc != 0
 
-- name: Add Docker repository
+- name: Adicionar repositório do Docker
   apt_repository:
-    repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable
+    repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
     state: present
   when: ansible_os_family == "Debian" and docker_installed.rc != 0
 
-- name: Install Docker
+- name: Instalar Docker Engine e plugins
   apt:
-    name: docker-ce
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
     state: present
   when: ansible_os_family == "Debian" and docker_installed.rc != 0
 
-- name: Install Docker Compose via pip
-  pip:
-    name: docker-compose
-    state: present
-  when: docker_installed.rc != 0
-
-- name: Ensure Docker service is running
+- name: Garantir que o serviço Docker está ativo e habilitado
   service:
     name: docker
     state: started
